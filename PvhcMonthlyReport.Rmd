@@ -1,0 +1,339 @@
+---
+title: "`r sprintf('PVHC Monthly Report for %s' , reptDte)`"
+date: "`r sprintf('Produced on %s.' , format(Sys.Date() , format='%B %d, %Y'))`"
+output:  html_document
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+```
+
+```{r , label = 'packages'}
+library(here)
+library(tidyverse)
+library(janitor)
+library(ggplot2)
+library(extrafont)
+library(forcats)
+# library(epiDisplay)
+library(gt)
+library(webshot)
+library(magick)
+```
+
+```{r , label = 'colors_and_fonts'}
+# cosmetics
+loadfonts(device = 'win')
+clrs <- c('#8c510a' , '#5ab4ac' , '#4575b4')
+```
+
+```{r , label = 'chart_functions'}
+# chart functions
+source(file = 'pvhc_functions_for_charts.r')
+source(file = 'pvhc_functions_ppp.r')
+```
+
+```{r , label = 'import_gnucash_transactions'}
+# read in gnucash transaction report, all transactions to date 
+
+pvhcAllTrans <- read_csv("C:/Users/dsole/OneDrive/Personal Vault/data/pvhc/pvhcAllTrans.csv" , 
+                              col_types = cols(Date = col_date(format = "%m/%d/%Y"))) %>%
+  clean_names() %>%
+  fill(date) %>%
+  mutate(amount_num = str_remove_all(amount_num , '\\)')) %>%
+  mutate(amount_num = str_replace_all(amount_num , '\\(' , '-')) %>%
+  mutate(amount_num = str_remove_all(amount_num , ',')) %>%
+  mutate(amount_num = as.numeric(amount_num)) %>%
+  separate(full_account_name , into = c('acct1' , 'acct2') , 
+           sep = ':' , remove = FALSE) %>%
+  mutate(acct1 = str_replace_all(acct1 , 'Expenses' , 'Expense')) %>%
+  mutate(acct1 = ifelse(
+    str_detect(acct1 , "Own") , "Owners draw" , acct1))
+```
+
+```{r, fig.width=7,fig.height=4.2 , label = 'cum_chart'}
+# CUMULATIVE MONTHLY TOTALS
+# cumTtl %>% chtDf() %>%
+#   yXyCum() +
+#   # limits = c(0 , 35000), 
+#   # breaks = c(0 , 10000 , 
+#   #            20000 , 30000)) +
+#   labs(title = 
+#          sprintf(
+#            'Cumulative net profit by month 
+# January 1, 2019 to %s' , reptDte) ,
+#        y = 'Cumulative Dollar Amount') +
+#   labs(subtitle = subTitel)
+#  theme(text = element_text(family = 'Calibri'))
+```
+
+```{r, fig.width=7,fig.height=4.2 , label = 'not_cum_chart'}
+# MONTHLY TOTALS, NOT CUMULATIVE
+# cumTtl %>% chtDf() %>% 
+#   yXyByMo() +
+#   # limits = c(0 , 35000), 
+#   # breaks = c(0 , 10000 , 
+#   #            20000 , 30000)) +
+#   labs(title = sprintf(
+#     'Net profit (income less expense) by month 
+# January 1, 2020 to %s' , reptDte) ,
+#        y = 'Dollar Amount') +
+#   labs(subtitle = subTitel)
+#  theme(text = element_text(family = 'Calibri')) 
+```
+
+```{r, label = 'PPP_excluded'}
+# exclude = '' (includes PPP)
+exclude <- 'PPP'
+cumTtl <- 
+  mak_cumTtl(exclude = exclude)
+subTitel <- mak_subtitel(exclude = exclude)
+```
+
+```{r, fig.width=7,fig.height=4.2 , label = 'cum_chart_no_ppp'}
+# CUMULATIVE MONTHLY TOTALS
+
+exclude <- 'PPP'
+cumTtl <-
+  mak_cumTtl(exclude = exclude)
+subTitel <- mak_subtitel(exclude = exclude)
+
+# CUMULATIVE MONTHLY TOTALS
+
+# clrs <- c('red' , 'blue' , 'black' , 'gray' , 'yellow')
+
+cumCht <- 
+  cumTtl %>%
+  group_by(Year) %>%
+  mutate(amt_cum = cumsum(amt_sum)) %>%
+  ungroup() %>%
+  mutate(`Cum. amount` = scales::dollar(amt_cum)) %>% # for tooltip label
+  mutate(year = Year) %>% # to differentiate group from color
+  mutate(Year = as.character(Year)) %>%
+  ggplot(mapping = aes(x = Month , y = amt_cum , group = year , color = Year , 
+                       shape = Year , 
+                       text = sprintf('Amount: %s' , `Cum. amount`))) + # includes 'text' as available to ggplotly
+  geom_line() +
+  geom_point(size = 3) +
+  scale_y_continuous(labels=scales::dollar_format()) +
+  labs(title = 
+           'Cumulative net profit by month'  ,
+       y = 'Cumulative Dollar Amount') +
+  labs(subtitle = subTitel) 
+
+
+# solution to dollar labeling problem: 
+# https://stackoverflow.com/questions/38733403/edit-labels-in-tooltip-for-plotly-maps-using-ggplot2-in-r
+plotly::ggplotly(cumCht , tooltip = c('text' , 'x' , 'color')) %>%
+  plotly::layout(title = list(text = sprintf(
+  'PVHC: Cumulative net profit by month
+<sup>January 1, 2019 to %s , PPP dollars excluded (2020, 2021)<sup>', reptDte)))
+  
+
+```
+
+```{r, fig.width=7,fig.height=4.2 , label = 'not_cum_chart_no_ppp'}
+# MONTHLY TOTALS, NOT CUMULATIVE
+# cumTtl %>% chtDf() %>% 
+#   yXyByMo() +
+#   # limits = c(0 , 35000), 
+#   # breaks = c(0 , 10000 , 
+#   #            20000 , 30000)) +
+#   labs(title = sprintf(
+#     'Net profit (income less expense) by month 
+# January 1, 2020 to %s' , reptDte) ,
+#        y = 'Dollar Amount') +
+#   labs(subtitle = subTitel)
+#  theme(text = element_text(family = 'Calibri'))
+
+mXm <- cumTtl %>% 
+  arrange(Year , Month) %>% 
+  group_by(Year) %>%
+#  mutate(amt_cum = cumsum(amt_sum)) %>%
+  ungroup() %>%
+  mutate(Amount = scales::dollar(amt_sum , accuracy = 1)) %>% # for tooltip label
+  mutate(year = Year) %>% # to differentiate group from color
+  filter(Year >= 2020) %>%
+  mutate(Year = as.factor(Year)) %>%
+  ggplot(aes(x = Month , y = amt_sum ,  
+             fill = Year , 
+             textYear = Year , 
+             text = sprintf('Amount: %s' , `Amount`))) + 
+  geom_col(position = 'dodge2') +
+  #  scale_fill_manual(values = clrs , name = NULL) +
+  #  scale_color_manual(values = clrs , name = NULL) 
+  scale_y_continuous(labels=scales::dollar_format()) +
+  # limits = c(0 , 35000), 
+  # breaks = c(0 , 10000 , 
+  #            20000 , 30000)) +
+  labs(title = sprintf(
+    'Net profit (income less expense) by month 
+January 1, 2020 to %s' , reptDte) ,
+    y = 'Dollar Amount') +
+  labs(subtitle = subTitel)  
+  
+plotly::ggplotly(mXm , tooltip = c('textYear' , 'text' , 'x' , 'color')) %>%
+  plotly::layout(title = list(text = sprintf(
+    'PVHC: Net profit by month
+<sup>January 1, 2020 to %s , PPP dollars excluded (2020, 2021)<sup>', reptDte)))
+```
+
+```{r , label = 'functions_for_table'}
+source(file = 'pvhc_functions_for_table.r')
+```
+
+```{r , label = 'income and expense'}
+income <- 
+  makType(t = quote('Income'))
+
+expense <- 
+  makType(t = quote('Expense'))
+
+```
+\newpage
+```{r, label = 'net income table'}
+netInc <- 
+  bind_rows(income , expense) %>%
+  ungroup() %>%
+  # if statement for next month != 'Dec' 
+    {if (currM != 'Dec') {
+      mutate(. , across(nextM:Dec, ~as.character(.))) 
+    } else {.}} %>%
+#  mutate(across(nextM:Dec, ~as.character(.))) %>%
+  adorn_totals(na.rm = T , fill = NA , name = 'Net Income') %>%
+  mutate(acct1 = 
+           ifelse(acct2 == 'Net Income' , acct2 , acct1)) %>%
+  mutate_at(vars(c('Jan':'ytd')) ,
+            ~ifelse(acct1 == 'Expense' & 
+                      is.numeric(.),
+                    -. , .))
+                    
+ netInc %>%
+  ungroup() %>%
+  group_by(acct1) %>%
+  gt() %>%
+  tab_header(title = "Portland Vet House Calls net income by month" , 
+             subtitle = 
+               sprintf(
+                 'for period covering %s through %s' , 
+                 format(as.Date(fy_start) , '%B %d, %Y') , reptDte)) %>%
+  cols_label(acct2 = 'Category') %>%
+  cols_label('ytd' = html('Year <br>to date')) %>%
+  cols_align(align = 'center' , columns = c(1:16)) %>%
+  cols_align(align = 'left' , columns = c(1)) %>%
+  cols_hide('Year') %>%
+  sub_missing(columns = c(4:16) , missing_text = '--') %>%
+  row_group_order(c('Income' , 'Expense' , "Net Income")) %>%
+   purrr::reduce(c("Income", "Expense"),
+                 ~ summary_rows(
+                   .x,
+                   groups = .y,
+                   columns = c(Jan:currM, ytd) ,
+                   fns = list(
+                     list(label = paste0("Total, ", .y), fn = "sum")) ,
+                   fmt = ~fmt_currency(. , currency = 'USD' , decimals = 0 , accounting = T) , 
+                   missing_text = "--" ),
+                 .init = .) %>%
+   fmt_currency(columns = c(Jan:currM , ytd) ,  
+               currency = 'USD' , decimals = 0 , accounting = T) %>%
+  opt_table_font(font = 'Calibri') %>%
+  #  opt_row_striping(row_striping = TRUE) %>%
+  cols_width(columns=c('acct2') ~ pct(10)) %>%
+  cols_width(columns=c('ytd') ~ pct(7)) %>%
+  opt_stylize(style = 1 , color = 'blue') %>%
+  tab_options(table.width = pct(90)) %>%
+  tab_options(table.font.size = 12) %>%
+  opt_table_lines(extent = 'all')
+```
+
+\newpage
+
+```{r , label = 'net income less owners draw'}
+
+netLessOD <- 
+  makType_NLOD(t = quote('Owners draw')) 
+
+netLessOD %>%
+  mutate(acct1 =
+           ifelse(acct2 == "Net Less Draw" |
+                    acct2 == 'Net Income', acct2 , acct1)) %>%
+  ungroup() %>%
+  group_by(acct1) %>%
+  gt() %>%
+  tab_header(title = "Portland Vet House Calls: Net Less Draw by month" , 
+             subtitle = 
+               sprintf(
+                 'for period covering %s through %s' , 
+                 format(as.Date(fy_start) , '%B %d, %Y') , reptDte)) %>%
+  cols_label(acct2 = 'Category') %>%
+  cols_label('ytd' = html('Year <br>to date')) %>%
+  cols_align(align = 'center' , columns = c(1:16)) %>%
+  cols_align(align = 'left' , columns = c(1)) %>%
+  cols_hide('Year') %>%
+  sub_missing(columns = c(4:16) , missing_text = '--') %>%
+  row_group_order(c('Net Income' , 'Owners draw' , 'Net Less Draw')) %>%
+  summary_rows(
+    groups = 'Owners draw' , 
+    columns = c(Jan:currM, ytd) ,
+    fns = list(
+      list(label = 'Owners draw total' , fn = 'sum')) ,
+    fmt = ~fmt_currency(. , currency = 'USD' , decimals = 0 , accounting = T) , 
+    missing_text = "---" ) %>%
+  fmt_currency(columns = Jan:ytd , 
+               currency = 'USD' , decimals = 0 , accounting = T) %>%
+  opt_table_font(font = 'Calibri') %>%
+  #  opt_row_striping(row_striping = TRUE) %>%
+  cols_width(columns=c('acct2') ~ pct(10)) %>%
+  cols_width(columns=c('ytd') ~ pct(7)) %>%
+  opt_stylize(style = 1 , color = 'blue') %>%
+  tab_options(table.font.size = 12) %>%
+  opt_table_lines(extent = 'all')
+```
+
+
+
+```{r ,  include=FALSE , label = 'webshot_table'}
+# webshot(
+#    url  = sprintf('pvhc_%s.html' , filterDte), 
+#    file = sprintf('pvhc_%s.png' , filterDte))
+```
+
+
+```{r , out.width='100%' , out.height='100%' , label = 'MxM_tab'}
+# image_read(sprintf('pvhc_%s.png' , filterDte)) %>% 
+#   image_trim()
+```
+<br>
+
+\newpage
+
+```{r ,  out.width='90%' , out.height='90%' , label = 'PandLYTD'}
+source(here('pvhcPandL.R'))
+ft
+# htmltools::includeHTML(sprintf(here('PVHC Profit & Loss for %s.html') , reptDte))
+```
+
+```{r ,  out.width='100%' , out.height='100%' , label = 'PandLtoDate'}
+# htmltools::includeHTML('PandL_overall.html')
+```
+
+\newpage
+
+#### Profit and loss, current month
+
+```{r ,  out.width='100%' , out.height='100%' , label = 'PandLcurrMonth'}
+ftCurr
+```
+
+\newpage
+#### Owner's draw, year to date
+```{r ,  out.width='100%' , out.height='100%' , label = 'Owners Draw'}
+source(here('ownersDraw.R'))
+ft_od
+```
+
