@@ -3,13 +3,13 @@
 # stores in appropriate Drive directory
 
 # pass report date values
-filterDte <- '2025-08-31' #last day of report period
+filterDte <- '2025-09-30' #last day of report period
 fy_start <- '2025-01-01'
-curr_mo_start <- '2025-08-01'
+curr_mo_start <- '2025-09-01'
 fy_to_date <- filterDte
 reptDte <- format(as.Date(fy_to_date), '%B %d, %Y')
-currM <- 'Aug' # month of report
-nextM <- 'Sep' # change to next month after report date
+currM <- 'Sep' # month of report
+nextM <- 'Oct' # change to next month after report date
 
 rmarkdown::render(
   'PvhcMonthlyReport.Rmd',
