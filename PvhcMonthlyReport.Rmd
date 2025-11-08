@@ -45,6 +45,8 @@ pvhcAllTrans <- read_csv("C:/Users/dsole/OneDrive/Personal Vault/data/pvhc/pvhcA
                               col_types = cols(Date = col_date(format = "%m/%d/%Y"))) %>%
   clean_names() %>%
   fill(date) %>%
+  # filter to last 3 years
+  filter(year(date) > 2022) %>%
   mutate(amount_num = str_remove_all(amount_num , '\\)')) %>%
   mutate(amount_num = str_replace_all(amount_num , '\\(' , '-')) %>%
   mutate(amount_num = str_remove_all(amount_num , ',')) %>%
