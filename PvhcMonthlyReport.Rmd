@@ -134,7 +134,7 @@ cumCht <-
 plotly::ggplotly(cumCht , tooltip = c('text' , 'x' , 'color')) %>%
   plotly::layout(title = list(text = sprintf(
   'PVHC: Cumulative net profit by month
-<sup>January 1, 2019 to %s , PPP dollars excluded (2020, 2021)<sup>', reptDte)))
+<sup>%s to %s<sup>', startDateSubTitle , reptDte)))
   
 
 ```
@@ -160,7 +160,7 @@ mXm <- cumTtl %>%
   ungroup() %>%
   mutate(Amount = scales::dollar(amt_sum , accuracy = 1)) %>% # for tooltip label
   mutate(year = Year) %>% # to differentiate group from color
-  filter(Year >= 2020) %>%
+#  filter(Year >= 2020) %>%
   mutate(Year = as.factor(Year)) %>%
   ggplot(aes(x = Month , y = amt_sum ,  
              fill = Year , 
@@ -175,7 +175,7 @@ mXm <- cumTtl %>%
   #            20000 , 30000)) +
   labs(title = sprintf(
     'Net profit (income less expense) by month 
-January 1, 2020 to %s' , reptDte) ,
+%s to %s' , startDateSubTitle , reptDte) ,
     y = 'Dollar Amount') +
   labs(subtitle = subTitel)  
   
